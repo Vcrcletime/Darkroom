@@ -1,7 +1,7 @@
 name: Build Darkroom APK
 
 on:
-  workflow_dispatch: # เปิดให้กดสั่งบิลด์ผ่านมือถือได้เองทุกเมื่อ
+  workflow_dispatch:
 
 jobs:
   build:
@@ -20,7 +20,7 @@ jobs:
       - name: Install Android NDK
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r27c # หรือเวอร์ชัน NDK 29
+          ndk-version: r27c
 
       - name: Install Rust Toolchain & Target
         run: |
@@ -28,17 +28,29 @@ jobs:
           rustup target add aarch64-linux-android
           cargo install cargo-ndk --version 4.1.2 --locked
 
-      - name: Grant Execute Permission for Gradlew
+      # แก้ชื่อแอปใน Manifest และ Code ให้กลายเป็น Darkroom
+      - name: Rename App to Darkroom
+        run: |
+          find apps/lightcraft-android/android/app/src/main -type f \( -name "*.xml" -o -name "*.kt" \) -exec sed -i 's/LightCraft/Darkroom/g' {} +
+          sed -i 's/LightCraft/Darkroom/g' apps/lightcraft-android/android/app/build.gradle.kts || true
+
+      - name: Grant Execute Permission
         working-directory: apps/lightcraft-android/android
         run: chmod +x gradlew
 
-      - name: Build Release APK (64-bit ARM)
+      # สั่ง Build โดยไม่ใส่ unsigned เพื่อให้ระบบใส่ Debug Signature ให้อัตโนมัติ (ติดตั้งได้ทันที)
+      - name: Build Signed Release APK
         working-directory: apps/lightcraft-android/android
         run: |
-          ./gradlew assembleRelease -Plightcraft.abis=arm64-v8a -Plightcraft.unsigned=true
+          ./gradlew assembleRelease -Plightcraft.abis=arm64-v8a
+
+      - name: Rename Output APK
+        run: |
+          mkdir -p output_apk
+          find apps/lightcraft-android/android/app/build/outputs/apk/release -name "*.apk" -exec cp {} output_apk/Darkroom.apk \;
 
       - name: Upload Darkroom APK
         uses: actions/upload-artifact@v4
         with:
-          name: Darkroom-Release-APK
-          path: apps/lightcraft-android/android/app/build/outputs/apk/release/*.apk
+          name: Darkroom-App
+          path: output_apk/Darkroom.apk
